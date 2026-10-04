@@ -21,9 +21,9 @@ python -m pip install -r requirements.txt
 在项目根目录执行：
 
 ```bash
-scripts/run.sh opt-1.3b SST2 STE
-scripts/run.sh llama2-7b SQuAD Normal
-scripts/run.sh qwen3-8b WSC HTGE
+CUDA_VISIBLE_DEVICES=0 scripts/run.sh opt-1.3b SST2 STE
+CUDA_VISIBLE_DEVICES=0 scripts/run.sh llama2-7b SQuAD Normal
+CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b WSC HTGE
 ```
 
 模型别名：`opt-1.3b`、`opt-6.7b`、`llama2-7b`、`llama2-13b`、`qwen3-8b`。每个别名均可与上述八项任务、四种方法组合。分类任务使用选项概率；SQuAD 用答案 token 的 teacher forcing 损失训练，用生成结果的 F1 评估。默认权重精度为 W4A16，初始量化参数从 `pre_quantized_models/` 对应模型文件读取。所有任务统一使用 WikiText2 标定。
@@ -48,7 +48,7 @@ DRY_RUN=1 scripts/run.sh opt-6.7b SQuAD Normal
 
 支持的环境变量包括 `STEPS`、`LR`、`BATCH_SIZE`、`WBITS`、`ABITS`、`RESUME_PATH`、`NUM_TRAIN`、`NUM_EVAL`、`NUM_DEV`、`DELTA_OVERRIDE`、`T`、`OUTPUT_DIR`、`HF_HOME`。
 
-`DRY_RUN=1 scripts/run_matrix.sh` 生成全部 5 × 8 × 4 = 160 个命令，不启动训练。直接运行 `scripts/run_matrix.sh` 会逐个执行所有组合。
+`DRY_RUN=1 scripts/run_matrix.sh` 生成全部 5 × 8 × 4 = 160 个命令，不启动训练。直接运行 `CUDA_VISIBLE_DEVICES=0 scripts/run_matrix.sh` 会逐个执行所有组合。
 
 ## 本地实验文件
 
