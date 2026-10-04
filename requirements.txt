@@ -1,0 +1,11 @@
+# Install PyTorch separately as described in README.md.
+accelerate==1.12.0
+datasets==4.4.2
+matplotlib==3.10.8
+numpy==2.2.6
+protobuf==6.33.3
+safetensors==0.7.0
+sentencepiece==0.2.1
+termcolor==3.3.0
+tqdm==4.67.1
+transformers==4.57.6
