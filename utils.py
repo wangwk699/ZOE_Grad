@@ -320,6 +320,7 @@ class DataCollatorWithPaddingAndNesting:
 
 
 
+@dataclass
 class Prediction:
     correct_candidate: Union[int, str]
     predicted_candidate: Union[int, str]

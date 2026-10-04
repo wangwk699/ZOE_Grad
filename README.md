@@ -23,7 +23,7 @@ python -m pip install -r requirements.txt
 ```bash
 scripts/run.sh opt-1.3b SST2 STE
 scripts/run.sh llama2-7b SQuAD Normal
-scripts/run.sh qwen3-8b MultiRC HTGE
+scripts/run.sh qwen3-8b WSC HTGE
 ```
 
 模型别名：`opt-1.3b`、`opt-6.7b`、`llama2-7b`、`llama2-13b`、`qwen3-8b`。每个别名均可与上述八项任务、四种方法组合。分类任务使用选项概率；SQuAD 用答案 token 的 teacher forcing 损失训练，用生成结果的 F1 评估。默认权重精度为 W4A16，初始量化参数从 `pre_quantized_models/` 对应模型文件读取。所有任务统一使用 WikiText2 标定。
@@ -40,7 +40,7 @@ DRY_RUN=1 scripts/run.sh opt-6.7b SQuAD Normal
 - `CUDA_VISIBLE_DEVICES=0`：只让程序使用编号为 0 的 GPU。
 - `STEPS=256`：将最大训练步数设为 256（脚本默认是 5000）。
 - `LR=1e-6`：将学习率设为 0.000001。
-- `NUM_TRAIN=64`：抽取 64 条训练样本；默认会留出其中 10 条作为开发集，因此实际用于训练的是 54 条。
+- `NUM_TRAIN=64`：抽取 64 条训练样本。
 
 命令末尾的 `--no_eval true` 是传给 `train_main.py` 的额外参数，表示跳过训练结束后的评估。
 

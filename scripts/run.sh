@@ -40,10 +40,10 @@ fi
 
 if [[ "$TASK" == SQuAD ]]; then
   NUM_EVAL=${NUM_EVAL:-300}
-  NUM_DEV=${NUM_DEV:-30}
+  NUM_DEV=${NUM_DEV:-50}
 else
   NUM_EVAL=${NUM_EVAL:-1000}
-  NUM_DEV=${NUM_DEV:-10}
+  NUM_DEV=${NUM_DEV:-50}
 fi
 
 export HF_HOME=${HF_HOME:-"$PWD/cache/hf"}
