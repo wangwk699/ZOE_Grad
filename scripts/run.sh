@@ -15,7 +15,6 @@ case "$MODEL_ALIAS" in
   opt-1.3b|opt-6.7b) MODEL_ID="facebook/$MODEL_ALIAS"; CHECKPOINT="$MODEL_ALIAS-w4a16.pth"; LET=1 ;;
   llama2-7b) MODEL_ID="meta-llama/Llama-2-7b-hf"; CHECKPOINT="Llama-2-7b-w4a16.pth"; LET=0 ;;
   llama2-13b) MODEL_ID="meta-llama/Llama-2-13b-hf"; CHECKPOINT="Llama-2-13b-w4a16.pth"; LET=0 ;;
-  llama3-8b) MODEL_ID="meta-llama/Meta-Llama-3-8B"; CHECKPOINT="Meta-Llama-3-8B-w4a16.pth"; LET=0 ;;
   qwen3-8b) MODEL_ID="Qwen/Qwen3-8B"; CHECKPOINT="Qwen3-8B-w4a16.pth"; LET=0 ;;
   *) echo "Unsupported model: $MODEL_ALIAS" >&2; exit 2 ;;
 esac
@@ -47,11 +46,6 @@ else
   NUM_DEV=${NUM_DEV:-10}
 fi
 
-if [[ "$MODEL_ALIAS" == opt-6.7b && "$TASK" == SQuAD ]]; then
-  CALIB_DATASET=${CALIB_DATASET:-squad}
-else
-  CALIB_DATASET=${CALIB_DATASET:-wikitext2}
-fi
 export HF_HOME=${HF_HOME:-"$PWD/cache/hf"}
 
 OUTPUT_DIR=${OUTPUT_DIR:-"./logs/$MODEL_ALIAS/$TASK/$METHOD"}
@@ -67,7 +61,7 @@ ARGS=(
   --train
   --train_as_classification "$CLASSIFICATION"
   --epochs 0
-  --calib_dataset "$CALIB_DATASET"
+  --calib_dataset wikitext2
   --cache_dir ./cache
   --q_output_dir "$OUTPUT_DIR"
   --output_dir "$OUTPUT_DIR"

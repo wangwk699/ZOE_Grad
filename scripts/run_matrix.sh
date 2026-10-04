@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
-MODELS=(opt-1.3b opt-6.7b llama2-7b llama2-13b llama3-8b qwen3-8b)
+MODELS=(opt-1.3b opt-6.7b llama2-7b llama2-13b qwen3-8b)
 TASKS=(SST2 RTE CB BoolQ WSC WIC MultiRC SQuAD)
 METHODS=(STE HTGE Uniform Normal)
 
