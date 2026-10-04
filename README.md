@@ -1,13 +1,13 @@
 # ZOE Grad
 
-统一运行五个模型上的八项任务与四种量化梯度估计方法。
+A unified way to run five models across eight tasks with four quantized gradient estimator methods.
 
-- 模型：OPT 1.3B、OPT 6.7B、Llama-2 7B、Llama-2 13B、Qwen3 8B。
-- 分类任务：SST2、RTE、CB、BoolQ、WSC、WIC、MultiRC。
-- 生成任务：SQuAD。
-- 梯度估计：STE、HTGE、Uniform、Normal。
+- **Models:** OPT 1.3B and 6.7B; Llama-2 7B and 13B; Qwen3 8B.
+- **Classification tasks:** SST2, RTE, CB, BoolQ, WSC, WIC, and MultiRC.
+- **Generative task:** SQuAD.
+- **Gradient estimators:** STE, HTGE, Uniform, and Normal.
 
-## 环境
+## Environment
 
 ```bash
 conda create -n ZOE python=3.10.19 -y
@@ -16,9 +16,9 @@ python -m pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/
 python -m pip install -r requirements.txt
 ```
 
-## 运行
+## Run
 
-在项目根目录执行：
+Run the following commands from the repository root:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 scripts/run.sh opt-1.3b SST2 STE
@@ -26,35 +26,37 @@ CUDA_VISIBLE_DEVICES=0 scripts/run.sh llama2-7b SQuAD Normal
 CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b WSC HTGE
 ```
 
-模型别名：`opt-1.3b`、`opt-6.7b`、`llama2-7b`、`llama2-13b`、`qwen3-8b`。每个别名均可与上述八项任务、四种方法组合。分类任务使用选项概率；SQuAD 用答案 token 的 teacher forcing 损失训练，用生成结果的 F1 评估。默认权重精度为 W4A16，初始量化参数从 `pre_quantized_models/` 对应模型文件读取。所有任务统一使用 WikiText2 标定。
+Supported model aliases are `opt-1.3b`, `opt-6.7b`, `llama2-7b`, `llama2-13b`, and `qwen3-8b`. Each model can be paired with any of the eight tasks and four estimators listed above. Classification tasks score candidate answers by their model probabilities. SQuAD uses teacher-forced loss on answer tokens for training and F1 on generated answers for evaluation.
 
-`run.sh` 通过环境变量覆盖常用设置；额外的 `train_main.py` 参数可以放在三个必选参数之后：
+The default quantization configuration is W4A16. Each run loads its initial quantization parameters from the corresponding file in `pre_quantized_models/`. All tasks use WikiText2 data for quantization calibration.
+
+`run.sh` accepts environment variables to override common settings; additional `train_main.py` options can be placed after the three required arguments:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 STEPS=256 LR=1e-6 NUM_TRAIN=64 scripts/run.sh qwen3-8b RTE Uniform --no_eval true
 DRY_RUN=1 scripts/run.sh opt-6.7b SQuAD Normal
 ```
 
-第一条命令会用 Qwen3 8B 在 RTE 任务上以 Uniform 方法训练。`scripts/run.sh` 前面的 `名称=值` 是仅对这一条命令生效的环境变量：
+The first command trains Qwen3 8B on RTE using Uniform gradient estimator. The assignments before `scripts/run.sh` apply only to this invocation:
 
-- `CUDA_VISIBLE_DEVICES=0`：只让程序使用编号为 0 的 GPU。
-- `STEPS=256`：将最大训练步数设为 256（脚本默认是 5000）。
-- `LR=1e-6`：将学习率设为 0.000001。
-- `NUM_TRAIN=64`：抽取 64 条训练样本。
+- `CUDA_VISIBLE_DEVICES=0` makes GPU 0 available to the process.
+- `STEPS=256` sets the maximum number of training steps to 256 instead of the default 5,000.
+- `LR=1e-6` sets the learning rate to 0.000001.
+- `NUM_TRAIN=64` selects 64 training examples.
 
-命令末尾的 `--no_eval true` 是传给 `train_main.py` 的额外参数，表示跳过训练结束后的评估。
+The trailing `--no_eval true` is passed to `train_main.py` and skips the evaluation performed after training.
 
-第二条命令指定 OPT 6.7B、SQuAD 任务和 Normal 方法。`DRY_RUN=1` 表示只打印即将执行的 `python train_main.py ...` 命令，不加载模型或启动训练，便于先检查参数；脚本仍会检查预量化参数文件是否存在。前置环境变量不会永久改变终端设置，也不会自动作用于下一条命令。
+The second command runs OPT 6.7B on SQuAD with the Normal gradient estimator. With `DRY_RUN=1`, the script prints the resulting `python train_main.py ...` command without loading a model or starting training. It still checks that the required pre-quantized parameter file exists. Environment assignments do not persist in the shell or affect subsequent commands.
 
-支持的环境变量包括 `STEPS`、`LR`、`BATCH_SIZE`、`WBITS`、`ABITS`、`RESUME_PATH`、`NUM_TRAIN`、`NUM_EVAL`、`NUM_DEV`、`DELTA_OVERRIDE`、`T`、`OUTPUT_DIR`、`HF_HOME`。
+Supported environment variables include `STEPS`, `LR`, `BATCH_SIZE`, `WBITS`, `ABITS`, `RESUME_PATH`, `NUM_TRAIN`, `NUM_EVAL`, `NUM_DEV`, `DELTA_OVERRIDE`, `T`, `OUTPUT_DIR`, and `HF_HOME`.
 
-`DRY_RUN=1 scripts/run_matrix.sh` 生成全部 5 × 8 × 4 = 160 个命令，不启动训练。直接运行 `CUDA_VISIBLE_DEVICES=0 scripts/run_matrix.sh` 会逐个执行所有组合。
+`DRY_RUN=1 scripts/run_matrix.sh` prints all 5 × 8 × 4 = 160 model–task–estimator combinations without training. To run them sequentially, use `CUDA_VISIBLE_DEVICES=0 scripts/run_matrix.sh`.
 
-## 本地实验文件
+## Required Local Files
 
-正式开始实验前，请创建以下三个目录并放入所运行模型需要的文件；缺少预量化参数会使所有模型的实验无法启动，缺少激活统计文件会使默认启用 LET 的 OPT 实验无法正常运行。
+Before starting experiments, create the three directories below and place the files required by the selected model in them. Missing the required pre-quantized parameter file causes any run to fail with an error; default OPT runs with LET also fail with an error if their activation statistics are missing.
 
-- `pre_quantized_models/` 存放已量化模型的参数文件。`scripts/run.sh` 默认读取所选模型对应的 `*-w4a16.pth`，以该量化结果作为训练起点。
-- `act_scales/`、`act_shifts/` 存放 OPT 模型的激活统计。默认脚本为 OPT 1.3B、6.7B 启用 LET，量化时会读取对应模型的两个 `.pt` 文件；Llama-2 7B、13B 和 Qwen3-8B 默认不启用 LET，不会读取这两个目录。所有任务统一使用 WikiText2 标定数据。
+- `pre_quantized_models/` stores per-layer OmniQuant parameter checkpoints (LET smoothing parameters and/or LWC clipping factors). By default, `scripts/run.sh` loads the selected model's `*-w4a16.pth` file as the starting point for training.
+- `act_scales/` and `act_shifts/` contain activation statistics used by OPT models. The default script enables learnable equivalent transformation (LET) for OPT 1.3B and 6.7B and loads their corresponding `.pt` files. LET is disabled by default for Llama-2 7B and 13B and Qwen3 8B, so those runs do not read these directories. All tasks use WikiText2 calibration data.
 
-预量化参数和激活统计文件可从 [OmniQuant](https://github.com/OpenGVLab/OmniQuant) 获取；其未提供的模型文件需另行准备。
+Pre-quantized parameters and activation statistics can be obtained from [OmniQuant](https://github.com/OpenGVLab/OmniQuant); model files unavailable there must first be obtained by training them independently.
