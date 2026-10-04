@@ -46,7 +46,7 @@ The first command trains Qwen3 8B on RTE using Uniform gradient estimator. The a
 
 The trailing `--no_eval true` is passed to `train_main.py` and skips the evaluation performed after training.
 
-The second command runs OPT 6.7B on SQuAD with the Normal gradient estimator. With `DRY_RUN=1`, the script prints the resulting `python train_main.py ...` command without loading a model or starting training. It still checks that the required pre-quantized parameter file exists. Environment assignments do not persist in the shell or affect subsequent commands.
+The second command runs OPT 6.7B on SQuAD with the Normal gradient estimator. With `DRY_RUN=1`, the script prints the resulting `python train_main.py ...` command without loading a model or starting training. It still checks that the required OmniQuant parameter checkpoint exists. Environment assignments do not persist in the shell or affect subsequent commands.
 
 Supported environment variables include `STEPS`, `LR`, `BATCH_SIZE`, `WBITS`, `ABITS`, `RESUME_PATH`, `NUM_TRAIN`, `NUM_EVAL`, `NUM_DEV`, `DELTA_OVERRIDE`, `T`, `OUTPUT_DIR`, and `HF_HOME`.
 
@@ -54,9 +54,9 @@ Supported environment variables include `STEPS`, `LR`, `BATCH_SIZE`, `WBITS`, `A
 
 ## Required Local Files
 
-Before starting experiments, create the three directories below and place the files required by the selected model in them. Missing the required pre-quantized parameter file causes any run to fail with an error; default OPT runs with LET also fail with an error if their activation statistics are missing.
+Before starting experiments, create the three directories below and place the files required by the selected model in them. Missing the required OmniQuant parameter checkpoint causes any run to fail with an error; default OPT runs with LET also fail with an error if their activation statistics are missing.
 
-- `pre_quantized_models/` stores per-layer OmniQuant parameter checkpoints (LET smoothing parameters and/or LWC clipping factors). By default, `scripts/run.sh` loads the selected model's `*-w4a16.pth` file as the starting point for training.
-- `act_scales/` and `act_shifts/` contain activation statistics used by OPT models. The default script enables learnable equivalent transformation (LET) for OPT 1.3B and 6.7B and loads their corresponding `.pt` files. LET is disabled by default for Llama-2 7B and 13B and Qwen3 8B, so those runs do not read these directories. All tasks use WikiText2 calibration data.
+- `pre_quantized_models/` stores per-layer OmniQuant parameter checkpoints. During quantization, `scripts/run.sh` loads the selected model's `*-w4a16.pth` file before downstream training.
+- `act_scales/` and `act_shifts/` store activation statistics. The default script enables learnable equivalent transformation (LET) for OPT 1.3B and 6.7B and loads their corresponding `.pt` files. LET is disabled by default for Llama-2 7B and 13B and Qwen3 8B, so those runs do not read these directories. All tasks use WikiText2 calibration data.
 
-Pre-quantized parameters and activation statistics can be obtained from [OmniQuant](https://github.com/OpenGVLab/OmniQuant); model files unavailable there must first be obtained by training them independently.
+OmniQuant parameter checkpoints and activation statistics can be obtained from [OmniQuant](https://github.com/OpenGVLab/OmniQuant); model files unavailable there must first be obtained by training them independently.
