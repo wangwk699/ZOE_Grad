@@ -1,111 +1,25 @@
-# ZOE-Grad: Boundary-Aware Surrogate Gradients for LLM Quantization
+# [Rethinking Gradient Approximation in Quantization: A Zeroth-Order Expectation Perspective](https://openreview.net/forum?id=0ZZ3tyBGyc)
 
 [English](README.md) | [中文](README_zh.md)
 
-**NeurIPS 2026 · Accepted**
+We propose **ZOE-Grad (Zeroth-Order Expectation Gradient)**, a boundary-aware surrogate-gradient framework for LLM quantization from a zeroth-order expectation perspective. ZOE-Grad establishes constructive mappings between perturbation distributions and boundary-dependent surrogate gradients, characterizes STE as a special case induced by fixed-magnitude Rademacher perturbations, and provides bounded-error convergence guarantees for the original quantized objective.
 
-> **Rethinking Gradient Approximation in Quantization: A Zeroth-Order Expectation Perspective**
-
-ZOE-Grad connects zeroth-order gradient expectations with boundary-aware surrogate gradients for low-bit LLM quantization. This repository implements the resulting gradients as PyTorch backward operators and provides a unified pipeline for **quantization-scale fine-tuning with frozen model weights**, across OPT, Llama-2, and Qwen3.
-
-**Selected paper result:** on Qwen3-8B with W4A16 quantization, Uniform improves SQuAD F1 from **56.88 to 70.29 (+13.41 points)** over STE.
-
-[Method](#method-overview) · [Results](#selected-results) · [Supported configurations](#supported-models-tasks-and-estimators) · [Quick start](#quick-start) · [Code guide](#code-guide) · [Detailed usage](#run)
-
-## Why ZOE-Grad?
-
-Rounding makes low-bit quantization difficult to optimize: its derivative is zero almost everywhere. The straight-through estimator (STE) substitutes a constant backward gradient, ignoring where an input lies relative to a quantization boundary.
-
-ZOE-Grad derives surrogate gradients from the expectation of zeroth-order estimators. The perturbation distribution determines how the backward gradient responds to nearby quantization boundaries, giving a principled way to design and compare surrogates. The paper also explains STE as the expectation induced by fixed-magnitude Rademacher perturbations.
-
-## Highlights
-
-- **From theory to training operators.** A bidirectional construction connects perturbation distributions and boundary-dependent surrogate gradients; the repository implements STE, HTGE, Uniform, and Normal in [`quantize/quantizer.py`](quantize/quantizer.py).
-- **Custom PyTorch backward.** The forward pass retains hard rounding; the backward pass applies the chosen analytic surrogate. Uniform and Normal support single-boundary and multiple-boundary formulations.
-- **Quantization-scale optimization.** Starting from OmniQuant parameters, downstream supervision updates the scale corrections (`descale`) while keeping model weights frozen. The effective scale is `scale + descale`.
-- **LLM training and evaluation.** Architecture-specific quantized layers support OPT, Llama-2, and Qwen3, including Qwen3 attention integration. Classification and question answering use task-specific losses and metrics.
-- **Experiment orchestration and inspectable outputs.** A shared model/task/method interface supports a 5 × 8 × 4 configuration matrix, dry runs, seeded sampling, loss histories, loss curves, and metric JSON files.
-
-## Selected Results
-
-The following are **selected results reported in Table 1 of the paper**, comparing Uniform with STE under W4A16 quantization. W4A16 denotes 4-bit weights and 16-bit activations.
-
-| Model | Task / metric | STE | Uniform | Absolute gain |
-| --- | --- | ---: | ---: | ---: |
-| Qwen3-8B | SQuAD F1 | 56.88 | **70.29** | **+13.41 points** |
-| Qwen3-8B | RTE accuracy (%) | 83.39 | **88.81** | **+5.42 percentage points** |
-| Llama-2-7B | SQuAD F1 | 47.33 | **66.69** | **+19.36 points** |
-
-These examples illustrate gains across model architectures and both classification and generation. The best estimator depends on the model and task; the table is a selection of paper results rather than an average over all tasks or a new reproduction run.
-
-**Additional paper experiments.** The paper also evaluates Llama-2-7B at W3A16, OPT-6.7B at W2A16, and Qwen2.5-0.5B at W4A4KV4 with and without rotation. In the rotation setting, RoUniform achieves **23.28** average ROUGE versus **21.15** for RoSTE (**+2.13 points**, Table 4). Qwen2.5 and rotation experiments are paper results; the current unified scripts cover the five models listed below.
+This repository provides the implementation used for downstream fine-tuning experiments on OPT, LLaMA-2, and Qwen3. The current unified scripts support **STE, HTGE, Uniform, and Normal** surrogate gradients across eight downstream tasks.
 
 ## Method Overview
 
-Each run loads a pretrained LLM, uses WikiText2 calibration inputs and external OmniQuant parameters to initialize quantized layers, then fine-tunes the quantization scales on a downstream task.
-
 ```mermaid
-flowchart TD
-    A["Pretrained LLM + OmniQuant parameters"] --> B["Initialize quantized layers with WikiText2"]
-    B --> C["Freeze model weights; register scale corrections"]
-    C --> D["Hard-round forward + task loss"]
-    M["STE / HTGE / Uniform / Normal"] --> E["Surrogate-gradient backward"]
-    D --> E
-    E --> F["Update quantization scales"]
-    F -->|"Next training step"| D
-    F -->|"After training"| G["Task evaluation + loss history + metrics"]
+flowchart LR
+    A["Pretrained LLM<br/>+ OmniQuant initialization"] --> B["Hard-round<br/>quantized forward"]
+    B --> C["Downstream<br/>task loss"]
+    C --> D["Surrogate-gradient backward<br/>STE / HTGE / Uniform / Normal"]
+    D --> E["Update quantization<br/>scale corrections"]
+    E --> B
 ```
 
-The zeroth-order expectation supplies the **analytic backward formula**. Training uses autograd and Hugging Face Trainer. The surrogate is evaluated during backpropagation and adds no surrogate computation to inference.
+The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization-scale corrections. The surrogate computation therefore introduces no additional inference-time cost.
 
-The implementation uses PyTorch fake quantization and floating-point linear operations to study quantization optimization; it does not provide a packed INT4 inference kernel.
-
-## Supported Models, Tasks, and Estimators
-
-| Component | Current unified-script support |
-| --- | --- |
-| Models | OPT-1.3B, OPT-6.7B, Llama-2-7B, Llama-2-13B, Qwen3-8B |
-| Classification tasks | SST2 (SST-2), RTE, CB, BoolQ, WSC, WIC (WiC), MultiRC |
-| Generative task | SQuAD |
-| Gradient estimators | STE, HTGE, Uniform, Normal |
-| Default quantization | W4A16, initialized from external OmniQuant parameters |
-| Trainable parameters | Quantization-scale corrections (`descale`); model weights remain frozen |
-| Calibration data | WikiText2 |
-| Main libraries | Python, PyTorch, Transformers, Accelerate, datasets, Matplotlib |
-
-Each of the five model aliases can be paired with any of the eight tasks and four estimators. The **160 combinations describe configurations supported by the scripts**, rather than a claim that all combinations have been reproduced in this repository.
-
-## Code Guide
-
-| Start here | What to inspect |
-| --- | --- |
-| [`quantize/quantizer.py`](quantize/quantizer.py) | Hard-round forward, custom surrogate backward, and effective quantization scales |
-| [`train_main.py`](train_main.py) | Parameter freezing, task training, evaluation, and metric output |
-| [`quantize/omniquant.py`](quantize/omniquant.py) | OmniQuant initialization and architecture-specific quantized-layer construction |
-| [`models/int_qwen3_layer.py`](models/int_qwen3_layer.py) | Qwen3 attention and MLP integration, including Q/K normalization, RoPE, and KV cache handling |
-| [`scripts/run.sh`](scripts/run.sh) / [`scripts/run_matrix.sh`](scripts/run_matrix.sh) | Single-experiment configuration and sequential matrix execution |
-
-Supporting modules include [`tasks.py`](tasks.py) and [`templates.py`](templates.py) for task data and prompts, [`utils.py`](utils.py) for task losses and utilities, [`metrics.py`](metrics.py) for evaluation, and [`trainer.py`](trainer.py) for loss recording.
-
-## Quick Start
-
-Use Bash on Linux or WSL with an NVIDIA GPU and the required model access. Before running, prepare the selected model's OmniQuant parameter checkpoint; OPT also requires activation statistics under the default LET configuration. See [Required Local Files](#required-local-files) for the full requirements.
-
-1. Install the [environment](#environment).
-2. Prepare the [required local files](#required-local-files).
-3. Run a ZOE-Grad estimator and an STE baseline using the same model and task:
-
-```bash
-# Uniform surrogate
-CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b RTE Uniform
-
-# STE baseline
-CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b RTE STE
-```
-
-These are usage examples with script defaults. Reproducing paper tables requires the corresponding model/task/method settings from the paper, including the learning rate, batch size, perturbation parameters, and evaluation sample count.
-
-## Environment
+## Install
 
 ```bash
 conda create -n ZOE python=3.10.19 -y
@@ -114,7 +28,16 @@ python -m pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/
 python -m pip install -r requirements.txt
 ```
 
-## Run
+## Required Local Files
+
+Before starting experiments, create the following directories and place the files required by the selected model in them:
+
+- `pre_quantized_models/` stores per-layer OmniQuant parameter checkpoints. During quantization, `scripts/run.sh` loads the selected model's `*-w4a16.pth` file before downstream training.
+- `act_scales/` and `act_shifts/` store activation statistics. The default script enables Learnable Equivalent Transformation (LET) for OPT-1.3B and OPT-6.7B and loads the corresponding `.pt` files. LET is disabled by default for LLaMA-2-7B, LLaMA-2-13B, and Qwen3-8B.
+
+OmniQuant parameter checkpoints and activation statistics can be obtained from [OmniQuant](https://github.com/OpenGVLab/OmniQuant); model files unavailable there must first be trained independently.
+
+## Usage
 
 Run the following commands from the repository root:
 
@@ -124,61 +47,103 @@ CUDA_VISIBLE_DEVICES=0 scripts/run.sh llama2-7b SQuAD Normal
 CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b WSC HTGE
 ```
 
-Supported model aliases are `opt-1.3b`, `opt-6.7b`, `llama2-7b`, `llama2-13b`, and `qwen3-8b`. Each model can be paired with any of the eight tasks and four estimators listed above. Classification tasks score candidate answers by their model probabilities. SQuAD uses teacher-forced loss on answer tokens for training and F1 on generated answers for evaluation.
+Supported model aliases are `opt-1.3b`, `opt-6.7b`, `llama2-7b`, `llama2-13b`, and `qwen3-8b`. Each model can be paired with any of the following tasks and surrogate-gradient methods:
 
-The default quantization configuration is W4A16. Each run loads its initial quantization parameters from the corresponding file in `pre_quantized_models/`. All tasks use WikiText2 data for quantization calibration.
+- **Classification:** SST2, RTE, CB, BoolQ, WSC, WIC, MultiRC
+- **Question answering:** SQuAD
+- **Surrogate gradients:** STE, HTGE, Uniform, Normal
 
-`run.sh` accepts environment variables to override common settings; additional `train_main.py` options can be placed after the three required arguments:
+Classification tasks score candidate answers by their model probabilities. SQuAD uses teacher-forced loss on answer tokens for training and F1 on generated answers for evaluation. The default quantization configuration is W4A16, and all tasks use WikiText2 data for quantization calibration.
+
+`scripts/run.sh` accepts environment variables to override common settings; additional `train_main.py` options can be placed after the three required arguments:
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 STEPS=256 LR=1e-6 NUM_TRAIN=64 scripts/run.sh qwen3-8b RTE Uniform --no_eval true
 DRY_RUN=1 scripts/run.sh opt-6.7b SQuAD Normal
 ```
 
-The first command trains Qwen3 8B on RTE using Uniform gradient estimator. The assignments before `scripts/run.sh` apply only to this invocation:
+The first command trains Qwen3-8B on RTE using the Uniform surrogate. The assignments before `scripts/run.sh` apply only to this invocation:
 
 - `CUDA_VISIBLE_DEVICES=0` makes GPU 0 available to the process.
 - `STEPS=256` sets the maximum number of training steps to 256 instead of the default 5,000.
 - `LR=1e-6` sets the learning rate to 0.000001.
 - `NUM_TRAIN=64` selects 64 training examples.
 
-The trailing `--no_eval true` is passed to `train_main.py` and skips the evaluation performed after training.
+The trailing `--no_eval true` is passed to `train_main.py` and skips evaluation after training.
 
-The second command runs OPT 6.7B on SQuAD with the Normal gradient estimator. With `DRY_RUN=1`, the script prints the resulting `python train_main.py ...` command without loading a model or starting training. It still checks that the required OmniQuant parameter checkpoint exists. Environment assignments do not persist in the shell or affect subsequent commands.
+The second command runs OPT-6.7B on SQuAD with the Normal surrogate. With `DRY_RUN=1`, the script prints the resulting `python train_main.py ...` command without loading a model or starting training. It still checks that the required OmniQuant parameter checkpoint exists.
 
 Supported environment variables include `STEPS`, `LR`, `BATCH_SIZE`, `WBITS`, `ABITS`, `RESUME_PATH`, `NUM_TRAIN`, `NUM_EVAL`, `NUM_DEV`, `DELTA_OVERRIDE`, `T`, `OUTPUT_DIR`, and `HF_HOME`.
 
-`DRY_RUN=1 scripts/run_matrix.sh` prints all 5 × 8 × 4 = 160 model–task–estimator combinations without training. To run them sequentially, use `CUDA_VISIBLE_DEVICES=0 scripts/run_matrix.sh`.
+To inspect all supported model-task-surrogate combinations without training:
 
-## Required Local Files
+```bash
+DRY_RUN=1 scripts/run_matrix.sh
+```
 
-Before starting experiments, create the three directories below and place the files required by the selected model in them. Missing the required OmniQuant parameter checkpoint causes any run to fail with an error; default OPT runs with LET also fail with an error if their activation statistics are missing.
+To run the matrix sequentially:
 
-- `pre_quantized_models/` stores per-layer OmniQuant parameter checkpoints. During quantization, `scripts/run.sh` loads the selected model's `*-w4a16.pth` file before downstream training.
-- `act_scales/` and `act_shifts/` store activation statistics. The default script enables learnable equivalent transformation (LET) for OPT 1.3B and 6.7B and loads their corresponding `.pt` files. LET is disabled by default for Llama-2 7B and 13B and Qwen3 8B, so those runs do not read these directories. All tasks use WikiText2 calibration data.
+```bash
+CUDA_VISIBLE_DEVICES=0 scripts/run_matrix.sh
+```
 
-OmniQuant parameter checkpoints and activation statistics can be obtained from [OmniQuant](https://github.com/OpenGVLab/OmniQuant); model files unavailable there must be obtained by training them independently.
+## Results
 
-## Outputs and Reproduction Notes
+For SST-2, RTE, CB, BoolQ, WSC, WiC, and MultiRC, we report accuracy (%). For SQuAD, we report F1.
 
-By default, run artifacts are written under `./logs/<model-alias>/<task>/<method>/`:
+### W4A16 Weight-Only Quantization
 
-- `loss_history.json` records logged training loss and any logged evaluation loss.
-- `loss_curve.png` plots the recorded training loss when logging has produced data points.
-- The evaluation metrics file is written **beside** that directory as `<output_dir>-trainset0.json` for the first sampled training set, unless `--result_file` overrides it. For example, the Qwen3/RTE/Uniform run writes `./logs/qwen3-8b/RTE/Uniform-trainset0.json`.
+**Table 1 (selected models).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on downstream tasks.
 
-Evaluation metrics are produced when post-training evaluation is enabled. The default script disables periodic checkpoint saving with `--save_strategy no`.
+| Model | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| LLaMA-2-7B | Zero-Shot | 58.03 | 62.09 | 33.93 | 66.10 | 36.54 | 50.16 | 42.40 | 58.71 |
+|  | Zero-Shot-Q | 50.92 | 48.38 | 50.00 | 39.90 | 53.85 | 50.00 | 58.80 | 41.80 |
+|  | STE | 93.46 | 58.12 | 57.14 | 60.70 | 63.46 | 51.84 | 59.40 | 47.33 |
+|  | HTGE | **95.18** | 66.06 | **73.21** | 67.80 | **73.08** | **68.81** | 59.60 | 61.73 |
+|  | Uniform | 94.72 | **69.70** | 69.64 | 62.30 | 64.42 | 54.67 | **62.60** | **66.69** |
+|  | Normal | 94.15 | 67.54 | **73.21** | **69.60** | 65.38 | 53.76 | 60.70 | 66.15 |
+| OPT-6.7B | Zero-Shot | 61.24 | 54.87 | 53.57 | 57.30 | 37.50 | 51.25 | 41.70 | 40.37 |
+|  | Zero-Shot-Q | 56.88 | 52.71 | 35.71 | 45.10 | 36.54 | 53.76 | 41.40 | 29.70 |
+|  | STE | 93.46 | 62.09 | 69.64 | 60.10 | 60.52 | 55.46 | 58.40 | 41.55 |
+|  | HTGE | 94.72 | **70.76** | 76.79 | 61.30 | **64.42** | 57.83 | 60.30 | **54.79** |
+|  | Uniform | **94.95** | 67.15 | 78.57 | **73.80** | **64.42** | **61.29** | **60.80** | 54.40 |
+|  | Normal | 94.72 | **70.76** | **85.71** | 72.80 | 63.46 | 59.25 | 60.40 | 54.38 |
+| Qwen3-8B | Zero-Shot | 55.50 | 84.48 | 66.07 | 80.20 | 64.42 | 63.01 | 85.50 | 34.50 |
+|  | Zero-Shot-Q | 57.57 | 83.03 | 44.64 | 78.20 | 62.50 | 59.25 | 82.90 | 30.18 |
+|  | STE | 87.96 | 83.39 | 73.21 | 81.80 | 72.12 | 70.38 | 83.40 | 56.88 |
+|  | HTGE | 89.91 | 86.64 | 82.14 | **85.60** | 75.00 | 72.57 | 84.60 | 65.18 |
+|  | Uniform | **92.89** | 88.81 | **89.29** | 85.40 | **76.92** | **73.98** | 87.20 | **70.29** |
+|  | Normal | 91.17 | **90.25** | 82.14 | 85.10 | 72.12 | 71.00 | **88.60** | 64.21 |
 
-Keep the following settings aligned when comparing estimators or reproducing a paper result:
+**Table 8.** Performance comparison of 4-bit weight-only quantization with 16-bit activations using different surrogate gradients on LLaMA-2-13B.
 
-| Setting | Script behavior / requirement |
-| --- | --- |
-| Training defaults | `STEPS=5000`, `LR=1e-6`, `BATCH_SIZE=1`, `NUM_TRAIN=1000`, `NUM_DEV=50`; paper configurations may differ |
-| Evaluation sample count | SQuAD defaults to `NUM_EVAL=300`; classification defaults to `NUM_EVAL=1000`. The paper describes SQuAD evaluation on up to 1,000 samples; set `NUM_EVAL` explicitly to match the experiment |
-| Evaluation split and sampling | The current code evaluates a sampled task `valid` split; record sample counts and seeds for comparisons |
-| Quantization initialization | Use an OmniQuant checkpoint matching the model and bit width. Overriding `WBITS` or `ABITS` does not change the default `*-w4a16.pth` checkpoint name; select the matching file with `RESUME_PATH` |
-| Activation quantization | The default downstream path enables weight quantization and disables `QuantLinear` input-activation quantization. Changing `ABITS` alone does not reproduce the paper's joint weight/activation/KV quantization experiments |
-| Matrix execution | `run_matrix.sh` enumerates configurations and runs them sequentially; it does not select paper-specific hyperparameters automatically |
+| Model | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| LLaMA-2-13B | Zero-Shot | 61.12 | 50.90 | 48.21 | 73.20 | 39.42 | 50.47 | 46.10 | 64.52 |
+|  | Zero-Shot-Q | 58.03 | 45.13 | 53.57 | 70.90 | 45.19 | 50.31 | 46.10 | 55.62 |
+|  | STE | 89.45 | 59.21 | 71.43 | 73.60 | 63.46 | 63.17 | 70.40 | 53.55 |
+|  | HTGE | **91.74** | 77.98 | 73.21 | 82.10 | 71.15 | **68.81** | **81.60** | **63.88** |
+|  | Uniform | 90.14 | 77.26 | **82.14** | **83.20** | 70.19 | 68.34 | 79.10 | 60.60 |
+|  | Normal | 90.83 | **80.87** | 78.57 | 81.80 | **72.12** | 68.50 | 80.10 | 61.61 |
+
+### W4A4KV4 Quantization and Rotation
+
+**Table 3.** W4A4KV4 results on Qwen2.5-0.5B without rotation.
+
+| Method | R-1 | R-2 | R-L | R-LSum | Average |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| STE | 28.86 | 9.15 | 22.52 | 22.51 | 20.76 |
+| Uniform | 30.33 | 10.18 | 23.72 | 23.73 | **21.99** |
+| Normal | 30.32 | 10.00 | 23.56 | 23.57 | 21.86 |
+
+**Table 4.** W4A4KV4 results on Qwen2.5-0.5B with rotation.
+
+| Method | R-1 | R-2 | R-L | R-LSum | Average |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| RoSTE | 29.50 | 9.60 | 22.74 | 22.75 | 21.15 |
+| RoUniform | 31.87 | 11.30 | 24.98 | 24.98 | **23.28** |
+| RoNormal | 31.27 | 10.59 | 23.87 | 23.88 | 22.40 |
 
 ## Acknowledgments
 

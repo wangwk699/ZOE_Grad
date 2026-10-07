@@ -1,111 +1,25 @@
-# ZOE-Grad：面向 LLM 量化的边界感知代理梯度
+# [Rethinking Gradient Approximation in Quantization: A Zeroth-Order Expectation Perspective](https://openreview.net/forum?id=0ZZ3tyBGyc)
 
 [English](README.md) | [中文](README_zh.md)
 
-**NeurIPS 2026 · 已接收**
+我们提出 **ZOE-Grad（Zeroth-Order Expectation Gradient）**：一种从零阶期望视角出发、面向 LLM 量化的边界感知代理梯度框架。ZOE-Grad 建立了扰动分布与边界依赖代理梯度之间的构造性双向映射，将 STE 刻画为固定幅度 Rademacher 扰动所诱导的特殊情形，并为原始量化目标给出了有界误差的收敛保证。
 
-> **Rethinking Gradient Approximation in Quantization: A Zeroth-Order Expectation Perspective**
-
-ZOE-Grad 将零阶梯度估计的期望与边界感知代理梯度联系起来，用于低比特大语言模型量化。本仓库将这些梯度实现为 PyTorch 反向传播算子，并提供覆盖 OPT、Llama-2 和 Qwen3 的统一训练评测流程，在**冻结模型权重的条件下微调量化尺度**。
-
-**论文代表性结果：**在 Qwen3-8B 的 W4A16 量化设置下，相比 STE，Uniform 将 SQuAD F1 从 **56.88 提升至 70.29（+13.41 点）**。
-
-[方法概览](#方法概览) · [核心结果](#核心结果) · [支持范围](#支持的模型任务与梯度估计器) · [快速开始](#快速开始) · [源码导航](#源码导航) · [详细使用说明](#运行说明)
-
-## 为什么需要 ZOE-Grad？
-
-低比特量化中的舍入操作几乎处处导数为零，使量化参数难以直接优化。常用的直通估计器（STE）以常数近似反向梯度，忽略了输入相对于量化边界的位置。
-
-ZOE-Grad 从零阶梯度估计的期望出发推导代理梯度。扰动分布决定反向梯度如何响应附近的量化边界，从而为代理梯度的设计和比较提供理论依据。论文还将 STE 解释为固定幅度 Rademacher 扰动所诱导的期望。
-
-## 核心亮点
-
-- **从理论构造到训练算子。**建立扰动分布与边界依赖代理梯度之间的双向构造关系，在 [`quantize/quantizer.py`](quantize/quantizer.py) 中实现 STE、HTGE、Uniform 和 Normal。
-- **自定义 PyTorch 反向传播。**前向保留硬舍入，反向使用所选代理梯度的解析表达式；Uniform 和 Normal 支持单边界与多边界形式。
-- **量化尺度优化。**以 OmniQuant 参数为初始化，利用下游监督信号更新尺度修正参数（`descale`），模型权重保持冻结；有效尺度为 `scale + descale`。
-- **LLM 训练与评测。**通过面向不同架构的量化层适配 OPT、Llama-2 和 Qwen3，包括 Qwen3 attention 集成；分类与问答任务采用各自的损失函数和评测指标。
-- **实验编排与可检查输出。**统一模型、任务和方法接口，支持 5 × 8 × 4 配置矩阵、dry run、带种子的数据采样、loss 历史、loss 曲线和指标 JSON 文件。
-
-## 核心结果
-
-以下为**论文表 1 中选取的结果**，比较 W4A16 量化下的 Uniform 与 STE。W4A16 表示权重为 4 位、激活为 16 位。
-
-| 模型 | 任务 / 指标 | STE | Uniform | 绝对提升 |
-| --- | --- | ---: | ---: | ---: |
-| Qwen3-8B | SQuAD F1 | 56.88 | **70.29** | **+13.41 点** |
-| Qwen3-8B | RTE 准确率（%） | 83.39 | **88.81** | **+5.42 个百分点** |
-| Llama-2-7B | SQuAD F1 | 47.33 | **66.69** | **+19.36 点** |
-
-这些结果展示了跨模型架构以及分类、生成两类任务上的收益。最佳估计器随模型和任务变化；该表是论文结果选摘，不代表所有任务的平均收益，也不是本次新增的复现实测。
-
-**论文扩展实验。**论文还评估了 Llama-2-7B 的 W3A16、OPT-6.7B 的 W2A16，以及 Qwen2.5-0.5B 在带旋转和不带旋转时的 W4A4KV4 设置。在带旋转设置下，RoUniform 的平均 ROUGE 为 **23.28**，RoSTE 为 **21.15**（**+2.13 点**，表 4）。Qwen2.5 与旋转实验属于论文结果；当前统一脚本覆盖下表列出的五个模型。
+本仓库提供论文中下游微调实验的实现，覆盖 OPT、LLaMA-2 和 Qwen3。当前统一脚本支持 **STE、HTGE、Uniform 和 Normal** 四种代理梯度以及八个下游任务。
 
 ## 方法概览
 
-每次运行加载预训练 LLM，使用 WikiText2 校准输入和外部 OmniQuant 参数初始化量化层，再在下游任务上微调量化尺度。
-
 ```mermaid
-flowchart TD
-    A["预训练 LLM + OmniQuant 参数"] --> B["使用 WikiText2 初始化量化层"]
-    B --> C["冻结模型权重；注册尺度修正参数"]
-    C --> D["硬舍入前向 + 任务损失"]
-    M["STE / HTGE / Uniform / Normal"] --> E["代理梯度反向传播"]
-    D --> E
-    E --> F["更新量化尺度"]
-    F -->|"下一训练步"| D
-    F -->|"训练结束后"| G["任务评测 + loss 历史 + 指标"]
+flowchart LR
+    A["预训练 LLM<br/>+ OmniQuant 初始化"] --> B["硬舍入<br/>量化前向"]
+    B --> C["下游任务<br/>损失"]
+    C --> D["代理梯度反向传播<br/>STE / HTGE / Uniform / Normal"]
+    D --> E["更新量化<br/>尺度修正参数"]
+    E --> B
 ```
 
-零阶期望用于构造**解析反向梯度公式**。训练使用 autograd 和 Hugging Face Trainer；代理梯度在反向传播阶段计算，推理时不增加代理梯度计算。
+前向传播保留硬舍入，仅在反向传播时使用所选代理梯度。模型权重保持冻结，下游监督信号用于更新量化尺度修正参数，因此代理梯度本身不会带来额外的推理时计算开销。
 
-本实现使用 PyTorch 伪量化（fake quantization）和浮点线性运算研究量化优化，不提供打包的 INT4 推理内核。
-
-## 支持的模型、任务与梯度估计器
-
-| 类别 | 当前统一脚本支持范围 |
-| --- | --- |
-| 模型 | OPT-1.3B、OPT-6.7B、Llama-2-7B、Llama-2-13B、Qwen3-8B |
-| 分类任务 | SST2（SST-2）、RTE、CB、BoolQ、WSC、WIC（WiC）、MultiRC |
-| 生成任务 | SQuAD |
-| 梯度估计器 | STE、HTGE、Uniform、Normal |
-| 默认量化配置 | W4A16，使用外部 OmniQuant 参数初始化 |
-| 可训练参数 | 量化尺度修正参数（`descale`）；模型权重保持冻结 |
-| 校准数据 | WikiText2 |
-| 主要依赖 | Python、PyTorch、Transformers、Accelerate、datasets、Matplotlib |
-
-五个模型别名均可与八个任务、四种估计器组合。**160 种组合表示脚本支持的配置范围**，不表示仓库已完成全部组合的复现。
-
-## 源码导航
-
-| 阅读入口 | 主要内容 |
-| --- | --- |
-| [`quantize/quantizer.py`](quantize/quantizer.py) | 硬舍入前向、自定义代理梯度反向传播及有效量化尺度 |
-| [`train_main.py`](train_main.py) | 参数冻结、任务训练、评测与指标输出 |
-| [`quantize/omniquant.py`](quantize/omniquant.py) | OmniQuant 初始化及不同模型架构的量化层构造 |
-| [`models/int_qwen3_layer.py`](models/int_qwen3_layer.py) | Qwen3 attention 与 MLP 集成，包括 Q/K normalization、RoPE 和 KV cache 处理 |
-| [`scripts/run.sh`](scripts/run.sh) / [`scripts/run_matrix.sh`](scripts/run_matrix.sh) | 单实验配置与矩阵串行执行 |
-
-其他模块包括：[`tasks.py`](tasks.py) 和 [`templates.py`](templates.py) 负责任务数据与提示模板；[`utils.py`](utils.py) 提供任务损失与工具函数；[`metrics.py`](metrics.py) 负责评测；[`trainer.py`](trainer.py) 负责 loss 记录。
-
-## 快速开始
-
-在 Linux 或 WSL 上使用 Bash，准备 NVIDIA GPU 及所需模型的访问权限。运行前需准备所选模型的 OmniQuant 参数 checkpoint；OPT 在默认 LET 配置下还需要激活统计文件。完整要求见[所需本地文件](#所需本地文件)。
-
-1. 安装[运行环境](#运行环境)。
-2. 准备[所需本地文件](#所需本地文件)。
-3. 在相同模型和任务上分别运行 ZOE-Grad 估计器与 STE 基线：
-
-```bash
-# Uniform surrogate
-CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b RTE Uniform
-
-# STE baseline
-CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b RTE STE
-```
-
-这些命令使用脚本默认值，属于使用示例。复现论文表格需采用对应模型、任务和方法的实验设置，包括学习率、batch size、扰动参数及评测样本数。
-
-## 运行环境
+## 环境安装
 
 ```bash
 conda create -n ZOE python=3.10.19 -y
@@ -114,7 +28,16 @@ python -m pip install torch==2.9.1 --index-url https://download.pytorch.org/whl/
 python -m pip install -r requirements.txt
 ```
 
-## 运行说明
+## 所需本地文件
+
+开始实验前，创建以下目录，并放入所选模型所需的文件：
+
+- `pre_quantized_models/`：保存逐层 OmniQuant 参数 checkpoint。量化过程中，`scripts/run.sh` 会在下游训练前加载所选模型的 `*-w4a16.pth` 文件。
+- `act_scales/` 和 `act_shifts/`：保存激活统计文件。默认脚本为 OPT-1.3B 和 OPT-6.7B 启用 Learnable Equivalent Transformation（LET），并加载对应 `.pt` 文件；LLaMA-2-7B、LLaMA-2-13B 和 Qwen3-8B 默认关闭 LET。
+
+OmniQuant 参数 checkpoint 和激活统计文件可从 [OmniQuant](https://github.com/OpenGVLab/OmniQuant) 获取；其中未提供的模型文件需要先自行训练得到。
+
+## 使用方法
 
 从仓库根目录运行以下命令：
 
@@ -124,61 +47,103 @@ CUDA_VISIBLE_DEVICES=0 scripts/run.sh llama2-7b SQuAD Normal
 CUDA_VISIBLE_DEVICES=0 scripts/run.sh qwen3-8b WSC HTGE
 ```
 
-支持的模型别名为 `opt-1.3b`、`opt-6.7b`、`llama2-7b`、`llama2-13b` 和 `qwen3-8b`。每个模型均可与前述八个任务、四种估计器中的任意组合配对。分类任务根据模型对候选答案给出的概率评分；SQuAD 在训练时使用答案 token 的 teacher-forced loss，在评测时对生成答案计算 F1。
+支持的模型别名为 `opt-1.3b`、`opt-6.7b`、`llama2-7b`、`llama2-13b` 和 `qwen3-8b`。每个模型均可与以下任务及代理梯度组合：
 
-默认量化配置为 W4A16。每次运行从 `pre_quantized_models/` 中相应文件加载初始量化参数。所有任务均使用 WikiText2 数据进行量化校准。
+- **分类任务：** SST2、RTE、CB、BoolQ、WSC、WIC、MultiRC
+- **问答任务：** SQuAD
+- **代理梯度：** STE、HTGE、Uniform、Normal
 
-`run.sh` 支持通过环境变量覆盖常用配置，也可在三个必需参数后追加 `train_main.py` 的其他选项：
+分类任务根据模型对候选答案给出的概率进行评分；SQuAD 在训练时使用答案 token 的 teacher-forced loss，在评测时对生成答案计算 F1。默认量化配置为 W4A16，所有任务均使用 WikiText2 数据进行量化校准。
+
+`scripts/run.sh` 支持通过环境变量覆盖常用配置，也可在三个必需参数后追加 `train_main.py` 的其他选项：
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 STEPS=256 LR=1e-6 NUM_TRAIN=64 scripts/run.sh qwen3-8b RTE Uniform --no_eval true
 DRY_RUN=1 scripts/run.sh opt-6.7b SQuAD Normal
 ```
 
-第一条命令在 RTE 上使用 Uniform 梯度估计器训练 Qwen3 8B。`scripts/run.sh` 前的环境变量赋值仅对本次调用生效：
+第一条命令在 RTE 上使用 Uniform 代理梯度训练 Qwen3-8B。`scripts/run.sh` 前的环境变量赋值仅对本次调用生效：
 
 - `CUDA_VISIBLE_DEVICES=0`：使进程可使用 GPU 0。
 - `STEPS=256`：将最大训练步数设为 256，而非默认的 5,000。
 - `LR=1e-6`：将学习率设为 0.000001。
 - `NUM_TRAIN=64`：选择 64 条训练样本。
 
-末尾的 `--no_eval true` 会传给 `train_main.py`，跳过训练结束后的评测。
+末尾的 `--no_eval true` 会传给 `train_main.py`，从而跳过训练结束后的评测。
 
-第二条命令选择 OPT 6.7B、SQuAD 和 Normal 梯度估计器。设置 `DRY_RUN=1` 时，脚本只打印生成的 `python train_main.py ...` 命令，不加载模型或开始训练，但仍会检查所需 OmniQuant 参数 checkpoint 是否存在。命令前的环境变量赋值不会保留在 shell 中，也不会影响后续命令。
+第二条命令选择 OPT-6.7B、SQuAD 和 Normal 代理梯度。设置 `DRY_RUN=1` 时，脚本只打印生成的 `python train_main.py ...` 命令，不加载模型或开始训练，但仍会检查所需的 OmniQuant 参数 checkpoint 是否存在。
 
 支持的环境变量包括 `STEPS`、`LR`、`BATCH_SIZE`、`WBITS`、`ABITS`、`RESUME_PATH`、`NUM_TRAIN`、`NUM_EVAL`、`NUM_DEV`、`DELTA_OVERRIDE`、`T`、`OUTPUT_DIR` 和 `HF_HOME`。
 
-`DRY_RUN=1 scripts/run_matrix.sh` 会打印全部 5 × 8 × 4 = 160 种模型、任务和估计器组合，不执行训练。使用 `CUDA_VISIBLE_DEVICES=0 scripts/run_matrix.sh` 可按顺序运行这些组合。
+若只希望查看所有支持的模型、任务和代理梯度组合而不执行训练：
 
-## 所需本地文件
+```bash
+DRY_RUN=1 scripts/run_matrix.sh
+```
 
-开始实验前，创建下述三个目录，并放入所选模型需要的文件。缺少必需的 OmniQuant 参数 checkpoint 会导致运行报错；默认启用 LET 的 OPT 实验若缺少激活统计文件，也会报错。
+若要按顺序运行全部组合：
 
-- `pre_quantized_models/`：保存逐层 OmniQuant 参数 checkpoint。量化过程中，`scripts/run.sh` 会在下游训练前加载所选模型的 `*-w4a16.pth` 文件。
-- `act_scales/` 和 `act_shifts/`：保存激活统计文件。默认脚本为 OPT 1.3B 和 6.7B 启用可学习等价变换（LET），并加载对应 `.pt` 文件；Llama-2 7B、13B 和 Qwen3 8B 默认关闭 LET，因此不读取这两个目录。所有任务均使用 WikiText2 校准数据。
+```bash
+CUDA_VISIBLE_DEVICES=0 scripts/run_matrix.sh
+```
 
-OmniQuant 参数 checkpoint 和激活统计文件可从 [OmniQuant](https://github.com/OpenGVLab/OmniQuant) 获取；其中未提供的模型文件需要先自行训练得到。
+## 实验结果
 
-## 输出与复现说明
+SST-2、RTE、CB、BoolQ、WSC、WiC 和 MultiRC 报告准确率（%）；SQuAD 报告 F1。
 
-默认运行产物写入 `./logs/<model-alias>/<task>/<method>/`：
+### W4A16 权重量化
 
-- `loss_history.json`：保存已记录的训练 loss，以及任何已记录的评测 loss。
-- `loss_curve.png`：在已有训练 loss 记录时绘制训练曲线。
-- 评测指标文件写在该目录**旁边**；第一组采样训练集默认使用 `<output_dir>-trainset0.json`，也可通过 `--result_file` 覆盖。例如，Qwen3/RTE/Uniform 运行会写入 `./logs/qwen3-8b/RTE/Uniform-trainset0.json`。
+**Table 1（选取模型）。** 4-bit 权重量化下不同代理梯度在下游任务上的性能比较。
 
-开启训练后评测时才会生成评测指标。默认脚本通过 `--save_strategy no` 关闭周期性 checkpoint 保存。
+| 模型 | 方法 | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| LLaMA-2-7B | Zero-Shot | 58.03 | 62.09 | 33.93 | 66.10 | 36.54 | 50.16 | 42.40 | 58.71 |
+|  | Zero-Shot-Q | 50.92 | 48.38 | 50.00 | 39.90 | 53.85 | 50.00 | 58.80 | 41.80 |
+|  | STE | 93.46 | 58.12 | 57.14 | 60.70 | 63.46 | 51.84 | 59.40 | 47.33 |
+|  | HTGE | **95.18** | 66.06 | **73.21** | 67.80 | **73.08** | **68.81** | 59.60 | 61.73 |
+|  | Uniform | 94.72 | **69.70** | 69.64 | 62.30 | 64.42 | 54.67 | **62.60** | **66.69** |
+|  | Normal | 94.15 | 67.54 | **73.21** | **69.60** | 65.38 | 53.76 | 60.70 | 66.15 |
+| OPT-6.7B | Zero-Shot | 61.24 | 54.87 | 53.57 | 57.30 | 37.50 | 51.25 | 41.70 | 40.37 |
+|  | Zero-Shot-Q | 56.88 | 52.71 | 35.71 | 45.10 | 36.54 | 53.76 | 41.40 | 29.70 |
+|  | STE | 93.46 | 62.09 | 69.64 | 60.10 | 60.52 | 55.46 | 58.40 | 41.55 |
+|  | HTGE | 94.72 | **70.76** | 76.79 | 61.30 | **64.42** | 57.83 | 60.30 | **54.79** |
+|  | Uniform | **94.95** | 67.15 | 78.57 | **73.80** | **64.42** | **61.29** | **60.80** | 54.40 |
+|  | Normal | 94.72 | **70.76** | **85.71** | 72.80 | 63.46 | 59.25 | 60.40 | 54.38 |
+| Qwen3-8B | Zero-Shot | 55.50 | 84.48 | 66.07 | 80.20 | 64.42 | 63.01 | 85.50 | 34.50 |
+|  | Zero-Shot-Q | 57.57 | 83.03 | 44.64 | 78.20 | 62.50 | 59.25 | 82.90 | 30.18 |
+|  | STE | 87.96 | 83.39 | 73.21 | 81.80 | 72.12 | 70.38 | 83.40 | 56.88 |
+|  | HTGE | 89.91 | 86.64 | 82.14 | **85.60** | 75.00 | 72.57 | 84.60 | 65.18 |
+|  | Uniform | **92.89** | 88.81 | **89.29** | 85.40 | **76.92** | **73.98** | 87.20 | **70.29** |
+|  | Normal | 91.17 | **90.25** | 82.14 | 85.10 | 72.12 | 71.00 | **88.60** | 64.21 |
 
-比较估计器或复现论文结果时，应对齐以下设置：
+**Table 8。** LLaMA-2-13B 在 4-bit 权重、16-bit 激活设置下使用不同代理梯度的下游任务性能比较。
 
-| 设置 | 脚本行为 / 要求 |
-| --- | --- |
-| 训练默认值 | `STEPS=5000`、`LR=1e-6`、`BATCH_SIZE=1`、`NUM_TRAIN=1000`、`NUM_DEV=50`；论文配置可能不同 |
-| 评测样本数 | SQuAD 默认 `NUM_EVAL=300`，分类任务默认 `NUM_EVAL=1000`；论文描述的 SQuAD 评测最多使用 1,000 条样本，需显式设置 `NUM_EVAL` 以匹配对应实验 |
-| 评测划分与采样 | 当前代码在任务 `valid` 划分上采样评测；比较时应记录样本数和种子 |
-| 量化初始化 | 使用与模型、位宽匹配的 OmniQuant checkpoint；覆盖 `WBITS` 或 `ABITS` 不会改变默认 `*-w4a16.pth` 文件名，应通过 `RESUME_PATH` 指定匹配文件 |
-| 激活量化 | 默认下游流程启用权重量化，并关闭 `QuantLinear` 的输入激活量化；仅修改 `ABITS` 无法复现论文中的权重、激活和 KV 联合量化实验 |
-| 矩阵执行 | `run_matrix.sh` 枚举配置并串行执行，不会自动选择论文各实验所需的超参数 |
+| 模型 | 方法 | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| LLaMA-2-13B | Zero-Shot | 61.12 | 50.90 | 48.21 | 73.20 | 39.42 | 50.47 | 46.10 | 64.52 |
+|  | Zero-Shot-Q | 58.03 | 45.13 | 53.57 | 70.90 | 45.19 | 50.31 | 46.10 | 55.62 |
+|  | STE | 89.45 | 59.21 | 71.43 | 73.60 | 63.46 | 63.17 | 70.40 | 53.55 |
+|  | HTGE | **91.74** | 77.98 | 73.21 | 82.10 | 71.15 | **68.81** | **81.60** | **63.88** |
+|  | Uniform | 90.14 | 77.26 | **82.14** | **83.20** | 70.19 | 68.34 | 79.10 | 60.60 |
+|  | Normal | 90.83 | **80.87** | 78.57 | 81.80 | **72.12** | 68.50 | 80.10 | 61.61 |
+
+### W4A4KV4 量化与旋转
+
+**Table 3。** Qwen2.5-0.5B 在不使用旋转时的 W4A4KV4 结果。
+
+| 方法 | R-1 | R-2 | R-L | R-LSum | Average |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| STE | 28.86 | 9.15 | 22.52 | 22.51 | 20.76 |
+| Uniform | 30.33 | 10.18 | 23.72 | 23.73 | **21.99** |
+| Normal | 30.32 | 10.00 | 23.56 | 23.57 | 21.86 |
+
+**Table 4。** Qwen2.5-0.5B 在使用旋转时的 W4A4KV4 结果。
+
+| 方法 | R-1 | R-2 | R-L | R-LSum | Average |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| RoSTE | 29.50 | 9.60 | 22.74 | 22.75 | 21.15 |
+| RoUniform | 31.87 | 11.30 | 24.98 | 24.98 | **23.28** |
+| RoNormal | 31.27 | 10.59 | 23.87 | 23.88 | 22.40 |
 
 ## 致谢
 
