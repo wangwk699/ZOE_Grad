@@ -8,14 +8,9 @@
 
 ## 方法概览
 
-```mermaid
-flowchart LR
-    A["Pretrained LLM<br/>+ OmniQuant initialization"] --> B["Hard-round<br/>quantized forward"]
-    B --> C["Downstream<br/>task loss"]
-    C --> D["Surrogate-gradient backward<br/>STE / HTGE / Uniform / Normal"]
-    D --> E["Update the quantization<br/>scale parameter"]
-    E --> B
-```
+<p align="center">
+  <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
+</p>
 
 前向传播保留 hard rounding，仅在反向传播时使用所选代理梯度。模型权重保持冻结，下游监督信号用于更新量化尺度修正参数，因此代理梯度本身不会带来额外的推理时计算开销。
 

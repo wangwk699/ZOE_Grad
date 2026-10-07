@@ -8,24 +8,11 @@ This repository provides the implementation used for downstream fine-tuning expe
 
 ## Method Overview
 
-```mermaid
-flowchart LR
-    A["Pretrained LLM<br/>+ OmniQuant initialization"] --> B["Hard-round<br/>quantized forward"]
-    B --> C["Downstream<br/>task loss"]
-    C --> D["Surrogate-gradient backward<br/>STE / HTGE / Uniform / Normal"]
-    D --> E["Update the quantization<br/>scale parameter"]
-    E --> B
-```
-
-The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization-scale corrections. The surrogate computation therefore introduces no additional inference-time cost.
-
 <p align="center">
   <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
 </p>
 
-<p align="center">
-  <img src="assets/method_overview1.svg" width="100%">
-</p>
+The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization-scale corrections. The surrogate computation therefore introduces no additional inference-time cost.
 
 ## Install
 
