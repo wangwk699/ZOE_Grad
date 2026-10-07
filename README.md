@@ -8,14 +8,19 @@ This repository provides the implementation used for downstream fine-tuning expe
 
 ## Method Overview
 
-```mermaid
-flowchart LR
-    A["Pretrained LLM<br/>+ OmniQuant initialization"] --> B["Hard-round<br/>quantized forward"]
-    B --> C["Downstream<br/>task loss"]
-    C --> D["Surrogate-gradient backward<br/>STE / HTGE / Uniform / Normal"]
-    D --> E["Update quantization<br/>scale corrections"]
-    E --> B
-```
+<table>
+  <tr>
+    <td align="center"><b>Pretrained LLM<br>+ OmniQuant initialization</b></td>
+    <td align="center"><b>→</b></td>
+    <td align="center"><b>Hard-round<br>quantized forward</b></td>
+    <td align="center"><b>→</b></td>
+    <td align="center"><b>Downstream<br>task loss</b></td>
+    <td align="center"><b>→</b></td>
+    <td align="center"><b>Surrogate-gradient backward<br>STE / HTGE / Uniform / Normal</b></td>
+    <td align="center"><b>→</b></td>
+    <td align="center"><b>Update quantization<br>scale corrections</b></td>
+  </tr>
+</table>
 
 The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization-scale corrections. The surrogate computation therefore introduces no additional inference-time cost.
 
@@ -93,39 +98,49 @@ For SST-2, RTE, CB, BoolQ, WSC, WiC, and MultiRC, we report accuracy (%). For SQ
 
 ### W4A16 Weight-Only Quantization
 
-**Table 1 (selected models).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on downstream tasks.
+**Table 1(a).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **LLaMA-2-7B**.
 
-| Model | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| LLaMA-2-7B | Zero-Shot | 58.03 | 62.09 | 33.93 | 66.10 | 36.54 | 50.16 | 42.40 | 58.71 |
-|  | Zero-Shot-Q | 50.92 | 48.38 | 50.00 | 39.90 | 53.85 | 50.00 | 58.80 | 41.80 |
-|  | STE | 93.46 | 58.12 | 57.14 | 60.70 | 63.46 | 51.84 | 59.40 | 47.33 |
-|  | HTGE | **95.18** | 66.06 | **73.21** | 67.80 | **73.08** | **68.81** | 59.60 | 61.73 |
-|  | Uniform | 94.72 | **69.70** | 69.64 | 62.30 | 64.42 | 54.67 | **62.60** | **66.69** |
-|  | Normal | 94.15 | 67.54 | **73.21** | **69.60** | 65.38 | 53.76 | 60.70 | 66.15 |
-| OPT-6.7B | Zero-Shot | 61.24 | 54.87 | 53.57 | 57.30 | 37.50 | 51.25 | 41.70 | 40.37 |
-|  | Zero-Shot-Q | 56.88 | 52.71 | 35.71 | 45.10 | 36.54 | 53.76 | 41.40 | 29.70 |
-|  | STE | 93.46 | 62.09 | 69.64 | 60.10 | 60.52 | 55.46 | 58.40 | 41.55 |
-|  | HTGE | 94.72 | **70.76** | 76.79 | 61.30 | **64.42** | 57.83 | 60.30 | **54.79** |
-|  | Uniform | **94.95** | 67.15 | 78.57 | **73.80** | **64.42** | **61.29** | **60.80** | 54.40 |
-|  | Normal | 94.72 | **70.76** | **85.71** | 72.80 | 63.46 | 59.25 | 60.40 | 54.38 |
-| Qwen3-8B | Zero-Shot | 55.50 | 84.48 | 66.07 | 80.20 | 64.42 | 63.01 | 85.50 | 34.50 |
-|  | Zero-Shot-Q | 57.57 | 83.03 | 44.64 | 78.20 | 62.50 | 59.25 | 82.90 | 30.18 |
-|  | STE | 87.96 | 83.39 | 73.21 | 81.80 | 72.12 | 70.38 | 83.40 | 56.88 |
-|  | HTGE | 89.91 | 86.64 | 82.14 | **85.60** | 75.00 | 72.57 | 84.60 | 65.18 |
-|  | Uniform | **92.89** | 88.81 | **89.29** | 85.40 | **76.92** | **73.98** | 87.20 | **70.29** |
-|  | Normal | 91.17 | **90.25** | 82.14 | 85.10 | 72.12 | 71.00 | **88.60** | 64.21 |
+| Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Zero-Shot | 58.03 | 62.09 | 33.93 | 66.10 | 36.54 | 50.16 | 42.40 | 58.71 |
+| Zero-Shot-Q | 50.92 | 48.38 | 50.00 | 39.90 | 53.85 | 50.00 | 58.80 | 41.80 |
+| STE | 93.46 | 58.12 | 57.14 | 60.70 | 63.46 | 51.84 | 59.40 | 47.33 |
+| HTGE | **95.18** | 66.06 | **73.21** | 67.80 | **73.08** | **68.81** | 59.60 | 61.73 |
+| Uniform | 94.72 | **69.70** | 69.64 | 62.30 | 64.42 | 54.67 | **62.60** | **66.69** |
+| Normal | 94.15 | 67.54 | **73.21** | **69.60** | 65.38 | 53.76 | 60.70 | 66.15 |
+
+**Table 1(b).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **OPT-6.7B**.
+
+| Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Zero-Shot | 61.24 | 54.87 | 53.57 | 57.30 | 37.50 | 51.25 | 41.70 | 40.37 |
+| Zero-Shot-Q | 56.88 | 52.71 | 35.71 | 45.10 | 36.54 | 53.76 | 41.40 | 29.70 |
+| STE | 93.46 | 62.09 | 69.64 | 60.10 | 60.52 | 55.46 | 58.40 | 41.55 |
+| HTGE | 94.72 | **70.76** | 76.79 | 61.30 | **64.42** | 57.83 | 60.30 | **54.79** |
+| Uniform | **94.95** | 67.15 | 78.57 | **73.80** | **64.42** | **61.29** | **60.80** | 54.40 |
+| Normal | 94.72 | **70.76** | **85.71** | 72.80 | 63.46 | 59.25 | 60.40 | 54.38 |
+
+**Table 1(c).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **Qwen3-8B**.
+
+| Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Zero-Shot | 55.50 | 84.48 | 66.07 | 80.20 | 64.42 | 63.01 | 85.50 | 34.50 |
+| Zero-Shot-Q | 57.57 | 83.03 | 44.64 | 78.20 | 62.50 | 59.25 | 82.90 | 30.18 |
+| STE | 87.96 | 83.39 | 73.21 | 81.80 | 72.12 | 70.38 | 83.40 | 56.88 |
+| HTGE | 89.91 | 86.64 | 82.14 | **85.60** | 75.00 | 72.57 | 84.60 | 65.18 |
+| Uniform | **92.89** | 88.81 | **89.29** | 85.40 | **76.92** | **73.98** | 87.20 | **70.29** |
+| Normal | 91.17 | **90.25** | 82.14 | 85.10 | 72.12 | 71.00 | **88.60** | 64.21 |
 
 **Table 8.** Performance comparison of 4-bit weight-only quantization with 16-bit activations using different surrogate gradients on LLaMA-2-13B.
 
-| Model | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| LLaMA-2-13B | Zero-Shot | 61.12 | 50.90 | 48.21 | 73.20 | 39.42 | 50.47 | 46.10 | 64.52 |
-|  | Zero-Shot-Q | 58.03 | 45.13 | 53.57 | 70.90 | 45.19 | 50.31 | 46.10 | 55.62 |
-|  | STE | 89.45 | 59.21 | 71.43 | 73.60 | 63.46 | 63.17 | 70.40 | 53.55 |
-|  | HTGE | **91.74** | 77.98 | 73.21 | 82.10 | 71.15 | **68.81** | **81.60** | **63.88** |
-|  | Uniform | 90.14 | 77.26 | **82.14** | **83.20** | 70.19 | 68.34 | 79.10 | 60.60 |
-|  | Normal | 90.83 | **80.87** | 78.57 | 81.80 | **72.12** | 68.50 | 80.10 | 61.61 |
+| Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Zero-Shot | 61.12 | 50.90 | 48.21 | 73.20 | 39.42 | 50.47 | 46.10 | 64.52 |
+| Zero-Shot-Q | 58.03 | 45.13 | 53.57 | 70.90 | 45.19 | 50.31 | 46.10 | 55.62 |
+| STE | 89.45 | 59.21 | 71.43 | 73.60 | 63.46 | 63.17 | 70.40 | 53.55 |
+| HTGE | **91.74** | 77.98 | 73.21 | 82.10 | 71.15 | **68.81** | **81.60** | **63.88** |
+| Uniform | 90.14 | 77.26 | **82.14** | **83.20** | 70.19 | 68.34 | 79.10 | 60.60 |
+| Normal | 90.83 | **80.87** | 78.57 | 81.80 | **72.12** | 68.50 | 80.10 | 61.61 |
 
 ### W4A4KV4 Quantization and Rotation
 
