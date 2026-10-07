@@ -24,7 +24,7 @@ The forward pass retains hard rounding, while the selected surrogate gradient is
 </p>
 
 <p align="center">
-  <img src="assets/method_overview.svg1" width="100%">
+  <img src="assets/method_overview1.svg" width="100%">
 </p>
 
 ## Install
