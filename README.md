@@ -12,7 +12,7 @@ This repository provides the implementation used for downstream fine-tuning expe
   <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
 </p>
 
-The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization-scale corrections. The surrogate computation therefore introduces no additional inference-time cost.
+The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization scale parameter. The surrogate computation therefore introduces no additional inference-time cost.
 
 ## Install
 

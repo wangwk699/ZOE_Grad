@@ -12,7 +12,7 @@
   <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
 </p>
 
-前向传播保留 hard rounding，仅在反向传播时使用所选代理梯度。模型权重保持冻结，下游监督信号用于更新量化尺度修正参数，因此代理梯度本身不会带来额外的推理时计算开销。
+前向传播保留 hard rounding，仅在反向传播时使用所选代理梯度。模型权重保持冻结，下游监督信号用于更新量化参数 scale，因此代理梯度本身不会带来额外的推理时计算开销。
 
 ## 环境安装
 
