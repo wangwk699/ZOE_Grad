@@ -19,6 +19,10 @@ flowchart LR
 
 The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization-scale corrections. The surrogate computation therefore introduces no additional inference-time cost.
 
+<p align="center">
+  <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
+</p>
+
 ## Install
 
 ```bash
