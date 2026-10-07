@@ -8,19 +8,9 @@
 
 ## 方法概览
 
-<table>
-  <tr>
-    <td align="center"><b>预训练 LLM<br>+ OmniQuant 初始化</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>硬舍入<br>量化前向</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>下游任务<br>损失</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>代理梯度反向传播<br>STE / HTGE / Uniform / Normal</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>更新量化<br>尺度修正参数</b></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
+</p>
 
 前向传播保留硬舍入，仅在反向传播时使用所选代理梯度。模型权重保持冻结，下游监督信号用于更新量化尺度修正参数，因此代理梯度本身不会带来额外的推理时计算开销。
 
@@ -98,7 +88,7 @@ SST-2、RTE、CB、BoolQ、WSC、WiC 和 MultiRC 报告准确率（%）；SQuAD 
 
 ### W4A16 权重量化
 
-**Table 1(a)。** **LLaMA-2-7B** 在 4-bit 权重量化下使用不同代理梯度的下游任务性能比较。
+**Table 1(a)。** **LLaMA-2-7B** 在 4-bit 权重量化下不同代理梯度在下游任务上的性能比较。
 
 | 方法 | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -109,7 +99,7 @@ SST-2、RTE、CB、BoolQ、WSC、WiC 和 MultiRC 报告准确率（%）；SQuAD 
 | Uniform | 94.72 | **69.70** | 69.64 | 62.30 | 64.42 | 54.67 | **62.60** | **66.69** |
 | Normal | 94.15 | 67.54 | **73.21** | **69.60** | 65.38 | 53.76 | 60.70 | 66.15 |
 
-**Table 1(b)。** **OPT-6.7B** 在 4-bit 权重量化下使用不同代理梯度的下游任务性能比较。
+**Table 1(b)。** **OPT-6.7B** 在 4-bit 权重量化下不同代理梯度在下游任务上的性能比较。
 
 | 方法 | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -120,7 +110,7 @@ SST-2、RTE、CB、BoolQ、WSC、WiC 和 MultiRC 报告准确率（%）；SQuAD 
 | Uniform | **94.95** | 67.15 | 78.57 | **73.80** | **64.42** | **61.29** | **60.80** | 54.40 |
 | Normal | 94.72 | **70.76** | **85.71** | 72.80 | 63.46 | 59.25 | 60.40 | 54.38 |
 
-**Table 1(c)。** **Qwen3-8B** 在 4-bit 权重量化下使用不同代理梯度的下游任务性能比较。
+**Table 1(c)。** **Qwen3-8B** 在 4-bit 权重量化下不同代理梯度在下游任务上的性能比较。
 
 | 方法 | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -131,7 +121,7 @@ SST-2、RTE、CB、BoolQ、WSC、WiC 和 MultiRC 报告准确率（%）；SQuAD 
 | Uniform | **92.89** | 88.81 | **89.29** | 85.40 | **76.92** | **73.98** | 87.20 | **70.29** |
 | Normal | 91.17 | **90.25** | 82.14 | 85.10 | 72.12 | 71.00 | **88.60** | 64.21 |
 
-**Table 8。** LLaMA-2-13B 在 4-bit 权重、16-bit 激活设置下使用不同代理梯度的下游任务性能比较。
+**Table 8。** **LLaMA-2-13B** 在 4-bit 权重量化下不同代理梯度在下游任务上的性能比较。
 
 | 方法 | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |

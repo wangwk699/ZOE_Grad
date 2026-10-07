@@ -8,19 +8,9 @@ This repository provides the implementation used for downstream fine-tuning expe
 
 ## Method Overview
 
-<table>
-  <tr>
-    <td align="center"><b>Pretrained LLM<br>+ OmniQuant initialization</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>Hard-round<br>quantized forward</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>Downstream<br>task loss</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>Surrogate-gradient backward<br>STE / HTGE / Uniform / Normal</b></td>
-    <td align="center"><b>→</b></td>
-    <td align="center"><b>Update quantization<br>scale corrections</b></td>
-  </tr>
-</table>
+<p align="center">
+  <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
+</p>
 
 The forward pass retains hard rounding, while the selected surrogate gradient is used only during backpropagation. Model weights remain frozen and the downstream supervision updates the quantization-scale corrections. The surrogate computation therefore introduces no additional inference-time cost.
 
@@ -98,7 +88,7 @@ For SST-2, RTE, CB, BoolQ, WSC, WiC, and MultiRC, we report accuracy (%). For SQ
 
 ### W4A16 Weight-Only Quantization
 
-**Table 1(a).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **LLaMA-2-7B**.
+**Table 1(a).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **LLaMA-2-7B** across downstream tasks.
 
 | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -109,7 +99,7 @@ For SST-2, RTE, CB, BoolQ, WSC, WiC, and MultiRC, we report accuracy (%). For SQ
 | Uniform | 94.72 | **69.70** | 69.64 | 62.30 | 64.42 | 54.67 | **62.60** | **66.69** |
 | Normal | 94.15 | 67.54 | **73.21** | **69.60** | 65.38 | 53.76 | 60.70 | 66.15 |
 
-**Table 1(b).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **OPT-6.7B**.
+**Table 1(b).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **OPT-6.7B** across downstream tasks.
 
 | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -120,7 +110,7 @@ For SST-2, RTE, CB, BoolQ, WSC, WiC, and MultiRC, we report accuracy (%). For SQ
 | Uniform | **94.95** | 67.15 | 78.57 | **73.80** | **64.42** | **61.29** | **60.80** | 54.40 |
 | Normal | 94.72 | **70.76** | **85.71** | 72.80 | 63.46 | 59.25 | 60.40 | 54.38 |
 
-**Table 1(c).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **Qwen3-8B**.
+**Table 1(c).** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **Qwen3-8B** across downstream tasks.
 
 | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -131,7 +121,7 @@ For SST-2, RTE, CB, BoolQ, WSC, WiC, and MultiRC, we report accuracy (%). For SQ
 | Uniform | **92.89** | 88.81 | **89.29** | 85.40 | **76.92** | **73.98** | 87.20 | **70.29** |
 | Normal | 91.17 | **90.25** | 82.14 | 85.10 | 72.12 | 71.00 | **88.60** | 64.21 |
 
-**Table 8.** Performance comparison of 4-bit weight-only quantization with 16-bit activations using different surrogate gradients on LLaMA-2-13B.
+**Table 8.** Performance comparison of 4-bit weight-only quantization with different surrogate gradients on **LLaMA-2-13B** across downstream tasks.
 
 | Method | SST-2 | RTE | CB | BoolQ | WSC | WiC | MultiRC | SQuAD |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
