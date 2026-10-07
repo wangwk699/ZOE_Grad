@@ -23,6 +23,10 @@ The forward pass retains hard rounding, while the selected surrogate gradient is
   <img src="assets/method_overview.svg" alt="Method Overview" width="100%">
 </p>
 
+<p align="center">
+  <img src="assets/method_overview.svg" width="100%">
+</p>
+
 ## Install
 
 ```bash
